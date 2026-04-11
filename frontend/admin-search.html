@@ -13,32 +13,58 @@
   <div class="app-layout">
     <aside class="sidebar"><div class="sidebar-section"><div class="sidebar-label">Admin Menu</div><div id="sidebarLinks"></div></div></aside>
     <main class="main-content">
-      <div class="page-header anim"><div class="breadcrumb">Admin / <span>Search & Filter</span></div><h1>Search & Filter</h1><p>Find students by department, batch, program, and status.</p></div>
+      <div class="page-header anim"><div class="breadcrumb">Admin / <span>Search & Filter</span></div><h1>Search & Filter</h1><p>Find students by department, batch, domain, program, and status.</p></div>
+      <div id="alertBox"></div>
 
       <div class="card anim anim-1 mb-4">
+        <div class="card-header"><div class="card-title">Import Excel Sheet</div><div class="card-tag">FIREBASE</div></div>
+        <p class="text-muted" style="margin-top:0;">Upload your Excel sheet here. Each row will be saved to Firestore and become available in search and filter.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="flex:1;min-width:280px;margin:0;">
+            <label class="form-label">Excel File</label>
+            <input id="sheetFile" type="file" class="form-control" accept=".xlsx,.xls"/>
+          </div>
+          <button class="btn btn-primary" id="importBtn" onclick="importSheet()">Upload To Firebase</button>
+        </div>
+        <div id="importSummary" class="text-muted" style="margin-top:12px;font-size:12px;"></div>
+      </div>
+
+      <div class="card anim anim-2 mb-4">
         <div class="card-header"><div class="card-title">Filters</div><button class="btn btn-sm btn-outline" onclick="clearFilters()">Clear All</button></div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
           <div class="form-group" style="margin:0;"><label class="form-label">Department</label>
-            <select id="fDept" class="form-control"><option value="">All Departments</option>
+            <select id="fDept" class="form-control" onchange="runFilter()">
+              <option value="">All Departments</option>
               <option>CSE</option><option>IT</option><option>AML</option><option>ADS</option>
               <option>ECE</option><option>EEE</option><option>EIE</option><option>Mech</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;"><label class="form-label">Batch</label>
-            <select id="fBatch" class="form-control"><option value="">All Batches</option>
-              <option>2022-26</option><option>2023-27</option><option>2024-28</option>
+            <select id="fBatch" class="form-control" onchange="runFilter()">
+              <option value="">All Batches</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;"><label class="form-label">Program</label>
-            <select id="fProg" class="form-control"><option value="">All Programs</option></select>
+            <select id="fProg" class="form-control" onchange="runFilter()"><option value="">All Programs</option></select>
+          </div>
+          <div class="form-group" style="margin:0;"><label class="form-label">Domain</label>
+            <select id="fDomain" class="form-control" onchange="runFilter()">
+              <option value="">All Domains</option>
+              <option>Artificial Intelligence</option>
+              <option>Angular Full Stack</option>
+              <option>Python Technology Stack</option>
+              <option>Java Technology Stack</option>
+              <option>Data Visualization</option>
+            </select>
           </div>
           <div class="form-group" style="margin:0;"><label class="form-label">Status</label>
-            <select id="fStatus" class="form-control"><option value="">All Status</option>
-              <option>Doing</option><option>Completed</option>
+            <select id="fStatus" class="form-control" onchange="runFilter()">
+              <option value="">All Status</option>
+              <option>Registered</option><option>Doing</option><option>Completed</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;"><label class="form-label">Search Name</label>
-            <input id="fSearch" class="form-control" placeholder="Student name..."/>
+            <input id="fSearch" class="form-control" placeholder="Student name..." oninput="filterByName()"/>
           </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:16px;">
@@ -47,12 +73,12 @@
         </div>
       </div>
 
-      <div class="card anim anim-2">
+      <div class="card anim anim-3">
         <div class="card-header"><div class="card-title">Results (<span id="rCount">—</span>)</div></div>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Student</th><th>Dept</th><th>Batch</th><th>Program</th><th>Type</th><th>Status</th><th>Reg ID</th><th>Enrolled</th></tr></thead>
-            <tbody id="resultTable"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3);">Use filters above to search.</td></tr></tbody>
+            <thead><tr><th>Student</th><th>Reg ID</th><th>Dept</th><th>Batch</th><th>Domain</th><th>Program</th><th>Type</th><th>Status</th><th>Enrolled</th></tr></thead>
+            <tbody id="resultTable"><tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3);">Loading...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -62,11 +88,13 @@
   <script>
     const admin = requireAdmin();
     let allResults = [];
+    let filteredResults = [];
 
     if (admin) {
       document.getElementById('navAdmin').textContent = admin.name;
       document.getElementById('sidebarLinks').innerHTML = buildAdminNav('admin-search.html');
       loadProgramOptions();
+      loadBatchOptions();
       runFilter();
     }
 
@@ -74,52 +102,112 @@
       try {
         const programs = await apiCall('GET', '/programs');
         const sel = document.getElementById('fProg');
+        sel.innerHTML = '<option value="">All Programs</option>';
         programs.forEach(p => sel.innerHTML += `<option value="${p.name}">${p.name}</option>`);
       } catch (e) {}
     }
 
+    async function loadBatchOptions() {
+      try {
+        const data = await apiCall('GET', '/admin/report');
+        const batches = [...new Set((Array.isArray(data) ? data : []).map(r => r.Batch).filter(Boolean))].sort();
+        const sel = document.getElementById('fBatch');
+        sel.innerHTML = '<option value="">All Batches</option>';
+        batches.forEach(b => sel.innerHTML += `<option value="${b}">${b}</option>`);
+      } catch (e) {}
+    }
+
+    async function importSheet() {
+      const fileInput = document.getElementById('sheetFile');
+      const file = fileInput.files[0];
+      if (!file) return showAlert('alertBox', 'Please choose an Excel file first.', 'error');
+
+      const formData = new FormData();
+      formData.append('sheet', file);
+
+      const btn = document.getElementById('importBtn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+      document.getElementById('importSummary').textContent = '';
+
+      try {
+        const result = await apiFileCall('/admin/import-sheet', formData);
+        showAlert('alertBox', result.message, 'success');
+        document.getElementById('importSummary').textContent = `Imported: ${result.imported} | Skipped: ${result.skipped}${result.errors?.length ? ` | Notes: ${result.errors.join(' ')}` : ''}`;
+        fileInput.value = '';
+        await loadProgramOptions();
+        await runFilter();
+      } catch (e) {
+        showAlert('alertBox', e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Upload To Firebase';
+      }
+    }
+
     async function runFilter() {
       try {
+        document.getElementById('resultTable').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3);">Loading...</td></tr>';
         const params = new URLSearchParams();
         const dept = document.getElementById('fDept').value;
         const batch = document.getElementById('fBatch').value;
         const prog = document.getElementById('fProg').value;
+        const domain = document.getElementById('fDomain').value;
         const status = document.getElementById('fStatus').value;
-        const search = document.getElementById('fSearch').value.toLowerCase();
         if (dept) params.set('dept', dept);
         if (batch) params.set('year', batch);
         if (prog) params.set('program', prog);
+        if (domain) params.set('domain', domain);
         if (status) params.set('status', status);
 
-        allResults = await apiCall('GET', `/admin/report?${params.toString()}`);
-        let filtered = allResults;
-        if (search) filtered = filtered.filter(r => r['Student Name']?.toLowerCase().includes(search));
-
-        document.getElementById('rCount').textContent = filtered.length;
-        const tbody = document.getElementById('resultTable');
-        if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3);">No results found.</td></tr>'; return; }
-        tbody.innerHTML = filtered.map(p => `<tr>
-          <td class="td-name">${p['Student Name']}</td>
-          <td><span class="badge badge-training">${p.Department || '—'}</span></td>
-          <td class="td-mono">${p.Batch || '—'}</td>
-          <td style="font-size:12px;max-width:180px;">${p['Program Name'] || '—'}</td>
-          <td>${typeBadge(p['Program Type'])}</td>
-          <td>${badgeHTML(p.Status)}</td>
-          <td class="td-mono">${p['Reg ID'] || '—'}</td>
-          <td class="td-mono">${formatDate(p['Enroll Date'])}</td>
-        </tr>`).join('');
+        const data = await apiCall('GET', `/admin/report?${params.toString()}`);
+        allResults = Array.isArray(data) ? data : [];
+        applyAllFilters();
       } catch (e) {
-        document.getElementById('resultTable').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3);">${e.message}</td></tr>`;
+        document.getElementById('resultTable').innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3);">${e.message}</td></tr>`;
       }
     }
 
+    function filterByName() {
+      applyAllFilters();
+    }
+
+    function applyAllFilters() {
+      const search = document.getElementById('fSearch').value.toLowerCase().trim();
+      filteredResults = !search ? allResults : allResults.filter(r =>
+        (r['Student Name'] || '').toLowerCase().includes(search) ||
+        (r['Reg ID'] || '').toLowerCase().includes(search)
+      );
+      renderTable(filteredResults);
+    }
+
+    function renderTable(data) {
+      document.getElementById('rCount').textContent = data.length;
+      const tbody = document.getElementById('resultTable');
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3);">No results found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map(p => `<tr>
+        <td class="td-name">${p['Student Name'] || '—'}</td>
+        <td class="td-mono">${p['Reg ID'] || '—'}</td>
+        <td><span class="badge badge-training">${p.Department || '—'}</span></td>
+        <td class="td-mono">${p.Batch || '—'}</td>
+        <td style="font-size:12px;">${p.Domain || '—'}</td>
+        <td style="font-size:12px;max-width:180px;">${p['Program Name'] || '—'}</td>
+        <td>${typeBadge(p['Program Type'])}</td>
+        <td>${badgeHTML(p.Status)}</td>
+        <td class="td-mono">${formatDate(p['Enroll Date'])}</td>
+      </tr>`).join('');
+    }
+
     function clearFilters() {
-      ['fDept', 'fBatch', 'fProg', 'fStatus', 'fSearch'].forEach(id => document.getElementById(id).value = '');
+      ['fDept', 'fBatch', 'fProg', 'fDomain', 'fStatus', 'fSearch'].forEach(id => document.getElementById(id).value = '');
       runFilter();
     }
 
     function exportResults() {
-      exportToExcel(allResults, 'Search_Results');
+      exportToExcel(filteredResults.length ? filteredResults : allResults, 'Search_Results');
     }
   </script>
 </body>
