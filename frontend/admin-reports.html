@@ -45,17 +45,6 @@
             <select id="fProg" class="form-control"><option value="">All Programs</option></select>
           </div>
           <div class="form-group" style="margin:0;">
-            <label class="form-label">Domain</label>
-            <select id="fDomain" class="form-control">
-              <option value="">All Domains</option>
-              <option>Artificial Intelligence</option>
-              <option>Angular Full Stack</option>
-              <option>Python Technology Stack</option>
-              <option>Java Technology Stack</option>
-              <option>Data Visualization</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0;">
             <label class="form-label">Status</label>
             <select id="fStatus" class="form-control">
               <option value="">All</option>
@@ -101,13 +90,11 @@
       const dept = document.getElementById('fDept').value;
       const batch = document.getElementById('fBatch').value;
       const prog = document.getElementById('fProg').value;
-      const domain = document.getElementById('fDomain').value;
       const status = document.getElementById('fStatus').value;
       if (type) params.set('type', type);
       if (dept) params.set('dept', dept);
       if (batch) params.set('year', batch);
       if (prog) params.set('program', prog);
-      if (domain) params.set('domain', domain);
       if (status) params.set('status', status);
       return params.toString();
     }

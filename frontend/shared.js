@@ -39,20 +39,6 @@ async function apiCall(method, path, body = null) {
   return data;
 }
 
-async function apiFileCall(path, formData) {
-  const headers = {};
-  const token = Auth.getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Request failed');
-  return data;
-}
-
 function requireStudent() {
   const u = Auth.getUser();
   if (!u) { window.location.href = 'login.html'; return null; }
@@ -74,7 +60,7 @@ function badgeHTML(status) {
     'Under Review': 'badge-review', 'Verified': 'badge-verified',
     'Completed': 'badge-completed', 'Rejected': 'badge-rejected',
     'Need Re-upload': 'badge-reupload', 'Doing': 'badge-review',
-    'Not Started': 'badge-submitted', 'Submitted': 'badge-submitted', 'Registered': 'badge-submitted',
+    'Not Started': 'badge-submitted', 'Submitted': 'badge-submitted',
     'pending': 'badge-review', 'approved': 'badge-verified', 'rejected': 'badge-rejected',
   };
   return `<span class="badge ${map[status] || 'badge-submitted'}">${status}</span>`;
@@ -112,6 +98,7 @@ function buildAdminNav(active) {
     { href: 'admin-verify.html', icon: '✅', label: 'Verify Documents' },
     { href: 'admin-programs.html', icon: '📚', label: 'Programs' },
     { href: 'admin-search.html', icon: '🔍', label: 'Search & Filter' },
+    { href: 'admin-reports.html', icon: '📄', label: 'Reports' },
   ].map(n => `<a href="${n.href}" class="${active === n.href ? 'active' : ''}"><span class="icon">${n.icon}</span>${n.label}</a>`).join('');
 }
 
